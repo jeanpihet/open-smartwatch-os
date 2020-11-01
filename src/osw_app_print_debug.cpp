@@ -7,6 +7,7 @@
 
 // if you define PRINT_GPS the serial output
 // is printed in the lower half of the screen
+#define PRINT_GPS
 
 #ifdef PRINT_GPS
 #define SERIAL_BUF_SIZE 10

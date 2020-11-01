@@ -1,4 +1,5 @@
 #include <Arduino.h>
+
 #include <osw_app.h>
 #include <osw_app_fadein_display.h>
 #include <osw_app_print_debug.h>
@@ -28,7 +29,7 @@ void setup() {
   hal->setupSD();
 
   hal->setBrightness(255);
-  hal->gpsAdvancedPowerSave();
+  hal->gpsFullOnGpsGlonassBeidu();
 
   xTaskCreatePinnedToCore(backgroundLoop, "backgroundLoop", 1000 /*stack*/, NULL /*input*/, 0 /*prio*/,
                           &Task1 /*handle*/, 0);
