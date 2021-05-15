@@ -29,6 +29,7 @@
 #include "./apps/tools/config_mgmt.h"
 #include "./apps/tools/print_debug.h"
 #include "./apps/tools/time_config.h"
+#include "./apps/tools/energy_mqtt.h"
 #include "./apps/tools/water_level.h"
 #include "./apps/watchfaces/watchface.h"
 #include "./apps/watchfaces/watchface_binary.h"
@@ -111,6 +112,7 @@ void setup() {
   // mainAppSwitcher->registerApp(new OswAppPrintDebug());
   mainAppSwitcher->registerApp(new OswAppSnakeGame());
   mainAppSwitcher->registerApp(new OswAppStopWatch());
+  mainAppSwitcher->registerApp(new OswAppEnergyMqtt()),
   mainAppSwitcher->registerApp(new OswAppWaterLevel());
   mainAppSwitcher->registerApp(new OswAppTimeConfig());
   mainAppSwitcher->registerApp(new OswAppConfigMgmt());
