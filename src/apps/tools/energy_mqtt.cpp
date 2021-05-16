@@ -20,7 +20,6 @@ IPAddress broker(192,168,2,33);
 WiFiClient wclient;
 PubSubClient client(wclient);
 
-//DynamicJsonDocument doc(1024);
 StaticJsonDocument<512> doc;
 uint32_t predpv_power = 0;
 uint32_t pv_power = 0;
@@ -93,7 +92,7 @@ void OswAppEnergyMqtt::setup(OswHal* hal) {
   hal->requestFlush();
 
   lastUITick = millis();
-  }
+}
 
 void OswAppEnergyMqtt::loop(OswHal* hal) {
   char buf[32];
@@ -122,9 +121,8 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
         client.subscribe("house/#");
       }
   } else {
-    // Generate data
-    client.loop();
 #if 0
+    // Generate random data, for testing
     predpv_power = random(POWER_MAX_W);
     pv_power = predpv_power * (33 + random(67)) / 100;
     ac_power = pv_power * random(100) / 150;
@@ -222,17 +220,14 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
   hal->gfx()->setTextCenterAligned();
   hal->gfx()->setTextTopAligned();
   hal->gfx()->setTextCursor(120, 86);
-  snprintf(buf, sizeof(buf), "%.1f A %.1f C",
-            battery_current, battery_temp);
+  snprintf(buf, sizeof(buf), "%.1f A %.1f C", battery_current, battery_temp);
   hal->gfx()->print(buf);
 
   hal->gfx()->setTextSize(2);
   hal->gfx()->setTextCenterAligned();
   hal->gfx()->setTextTopAligned();
   hal->gfx()->setTextCursor(120, 103);
-    snprintf(buf, sizeof(buf), "Connecting ...");
-    snprintf(buf, sizeof(buf), "PV/Pred:\n%d/%d\n W ",
-             pv_power, predpv_power);
+  snprintf(buf, sizeof(buf), "PV/Pred:\n%d/%d\n W ", pv_power, predpv_power);
   hal->gfx()->print(buf);
 
   // Draw battery
