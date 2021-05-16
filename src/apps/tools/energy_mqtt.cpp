@@ -8,9 +8,28 @@
 
 #include "osw_ui_util.h"
 
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+#include <ArduinoJson.h>
+
 #define POWER_MAX_W   15000
 
-static long lastTick;
+static long lastUITick;
+IPAddress broker(192,168,2,119);
+WiFiClient wclient;
+PubSubClient client(wclient);
+
+//DynamicJsonDocument doc(1024);
+StaticJsonDocument<512> doc;
+uint32_t predpv_power = 0;
+uint32_t pv_power = 0;
+uint32_t ac_power = 0;
+int32_t grid_power = 0;
+int32_t battery_percent = 0;
+float battery_current = 0;
+float battery_temp = 0;
+
 
 float clamp(float in, float min, float max)
 {
@@ -42,6 +61,25 @@ uint32_t clamp(uint32_t in, uint32_t min, uint32_t max)
   return in;
 }
 
+// Handle incomming messages from the MQTT broker
+void callback(char* topic, byte* payload, unsigned int length) {
+  //printf("MQTT RX, topic=%s, len=%d\n", topic, length);
+  if (!strcmp(topic, "house/irradiance")) {
+    deserializeJson(doc, payload);
+    predpv_power = doc["pv_power_pred"];
+  } else if (!strcmp(topic, "house/inverter")) {
+    deserializeJson(doc, payload);
+    pv_power = doc["pv_power"];
+    ac_power = doc["ac_power"];
+    grid_power = doc["grid_power"];
+  } else if (!strcmp(topic, "house/battery")) {
+    deserializeJson(doc, payload);
+    battery_percent = doc["batt_soc"];
+    battery_current = doc["batt_current"];
+    battery_temp = doc["batt_temp"];
+  }
+}
+
 void OswAppEnergyMqtt::setup(OswHal* hal) {
   hal->getWiFi()->setDebugStream(&Serial);
   // Display update
@@ -54,29 +92,39 @@ void OswAppEnergyMqtt::setup(OswHal* hal) {
   hal->gfx()->print("Energy monitor\nConnecting ...");
   hal->requestFlush();
 
-  lastTick = millis();
+  lastUITick = millis();
   }
 
 void OswAppEnergyMqtt::loop(OswHal* hal) {
-  uint32_t predpv_power = 0;
-  uint32_t pv_power = 0;
-  uint32_t ac_power = 0;
-  int32_t grid_power = 0;
-  int32_t battery_percent = 0;
-  float battery_current = 0;
-  float battery_temp = 0;
   char buf[32];
 
-  // Update every 1s
-  if (lastTick + 1000 > millis())
-    return;
-  lastTick = millis();
+  // Check MQTT messages
+  if (client.connected())
+    client.loop();
 
+  // Update UI every 1s
+  if (lastUITick + 1000 > millis())
+    return;
+  lastUITick = millis();
+
+  // Connect Wifi
   if (!hal->getWiFi()->isConnected()) {
-    // Connect Wifi
     hal->getWiFi()->checkWifi();
+    // Connect MQTT
+    client.setServer(broker, 1883);
+    client.setCallback(callback);
+  }
+  // Subscribe to MQTT topics
+  if (!client.connected()) {
+      if (client.connect("opensmartwatch")) {
+        // MQTT drops messages > 256 bytes, increase the limit
+        client.setBufferSize(512);
+        client.subscribe("house/#");
+      }
   } else {
     // Generate data
+    client.loop();
+#if 0
     predpv_power = random(POWER_MAX_W);
     pv_power = predpv_power * (33 + random(67)) / 100;
     ac_power = pv_power * random(100) / 150;
@@ -84,6 +132,7 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
     battery_percent = random(100);
     battery_current = (random(240) - 120) / 10.0;
     battery_temp = 15.0 + (random(350) / 10.0);
+#endif
   }
 
   // Clamp values for display
@@ -112,17 +161,17 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
   float angle = 3.1415 - (6.283 / 12.0 * (1.0 * hour + minute / 60.0));
   double x = 120.0 + sin(angle) * HOUR_TICKS_RADIUS;
   double y = 120.0 + cos(angle) * HOUR_TICKS_RADIUS;
-  hal->gfx()->fillCircle(x, y, 6, rgb565(220, 220, 220));
+  hal->gfx()->fillCircle(x, y, 7, rgb565(220, 220, 220));
   // minutes
   angle = 3.1415 - (6.283 / 60.0 * (minute + second / 60.0));
   x = 120.0 + sin(angle) * HOUR_TICKS_RADIUS;
   y = 120.0 + cos(angle) * HOUR_TICKS_RADIUS;
-  hal->gfx()->fillCircle(x, y, 4, dimColor(rgb565(117, 235, 10), 25));
+  hal->gfx()->fillCircle(x, y, 5, rgb565(252,255, 55));
   // seconds
   angle = 3.1415 - (6.283 / 60.0 * second);
   x = 120.0 + sin(angle) * HOUR_TICKS_RADIUS;
   y = 120.0 + cos(angle) * HOUR_TICKS_RADIUS;
-  hal->gfx()->fillCircle(x, y, 2, rgb565(66,50,210));
+  hal->gfx()->fillCircle(x, y, 3, rgb565(252, 94, 57));
 
   // Arcs
   // Grid power
@@ -162,10 +211,10 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
   hal->gfx()->print("PV");
 
   hal->gfx()->setTextRightAligned();
-  hal->gfx()->setTextCursor(120, 171);
-  hal->gfx()->print("AC ");
+  hal->gfx()->setTextCursor(120, 167);
+  hal->gfx()->print("Load ");
   hal->gfx()->setTextLeftAligned();
-  hal->gfx()->setTextCursor(120, 172);
+  hal->gfx()->setTextCursor(120, 168);
   snprintf(buf, sizeof(buf), "%d", ac_power);
   hal->gfx()->print(buf);
 
@@ -204,4 +253,5 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
 
   hal->requestFlush();
 }
+
 void OswAppEnergyMqtt::stop(OswHal* hal) {}
