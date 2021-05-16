@@ -16,7 +16,7 @@
 #define POWER_MAX_W   15000
 
 static long lastUITick;
-IPAddress broker(192,168,2,119);
+IPAddress broker(192,168,2,33);
 WiFiClient wclient;
 PubSubClient client(wclient);
 
