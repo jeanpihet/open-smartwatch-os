@@ -1,19 +1,16 @@
 
 #include "./apps/tools/energy_mqtt.h"
 
-#include <config.h>
 #include <gfx_util.h>
 #include <osw_app.h>
 #include <osw_hal.h>
-
-#include "osw_ui_util.h"
 
 #include <WiFi.h>
 #include <PubSubClient.h>
 
 #include <ArduinoJson.h>
 
-#define POWER_MAX_W   15000
+#define POWER_MAX_W   12000
 
 static long lastUITick;
 IPAddress broker(192,168,2,33);
@@ -29,6 +26,31 @@ int32_t battery_percent = 0;
 float battery_current = 0;
 float battery_temp = 0;
 
+typedef struct {
+  int32_t target;
+  int32_t value;
+} animation_t;
+
+animation_t grid_anim, pv_anim, pvpred_anim, ac_anim, batt_anim;
+
+int animation_value(animation_t *anim)
+{
+  #define STEPS     5
+  #define THRESHOLD 0.02f
+
+  if (anim->value == anim->target)
+    return 0;
+
+  float diff = ((float) anim->target - anim->value) / anim->target;
+  if (abs(diff) < THRESHOLD) {
+    anim->value = anim->target;
+  } else {
+    float new_value = (float) anim->value + ((float) anim->target - anim->value) / STEPS;
+    anim->value = new_value;
+  }
+
+  return 1;
+}
 
 float clamp(float in, float min, float max)
 {
@@ -77,6 +99,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
     battery_current = doc["batt_current"];
     battery_temp = doc["batt_temp"];
   }
+
+  // Clamp values for display
+  grid_power = clamp(grid_power, -POWER_MAX_W, POWER_MAX_W);
+  ac_power = clamp(ac_power, (uint32_t) 0, (uint32_t) POWER_MAX_W);
+  pv_power = clamp(pv_power, (uint32_t) 0, (uint32_t) POWER_MAX_W);
+  predpv_power = clamp(predpv_power, (uint32_t) 0, (uint32_t) POWER_MAX_W);
+  battery_percent = clamp(battery_percent, 0, 100);
 }
 
 void OswAppEnergyMqtt::setup(OswHal* hal) {
@@ -98,11 +127,29 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
   char buf[32];
 
   // Check MQTT messages
-  if (client.connected())
+  if (client.connected()) {
     client.loop();
+    grid_anim.target = grid_power;
+    pv_anim.target = pv_power;
+    pvpred_anim.target = predpv_power;
+    ac_anim.target = ac_power;
+    batt_anim.target = battery_percent;
+  }
 
-  // Update UI every 1s
-  if (lastUITick + 1000 > millis())
+  // Update anim, otherwise update UI every 1s
+  bool update_anim = false;
+  if (animation_value(&grid_anim))
+    update_anim = true;
+  if (animation_value(&pv_anim))
+    update_anim = true;
+  if (animation_value(&pvpred_anim))
+    update_anim = true;
+  if (animation_value(&ac_anim))
+    update_anim = true;
+  if (animation_value(&batt_anim))
+    update_anim = true;
+
+  if (!update_anim && lastUITick + 1000 > millis())
     return;
   lastUITick = millis();
 
@@ -133,18 +180,11 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
 #endif
   }
 
-  // Clamp values for display
-  grid_power = clamp(grid_power, -POWER_MAX_W, POWER_MAX_W);
-  ac_power = clamp(ac_power, (uint32_t) 0, (uint32_t) POWER_MAX_W);
-  pv_power = clamp(pv_power, (uint32_t) 0, (uint32_t) POWER_MAX_W);
-  predpv_power = clamp(predpv_power, (uint32_t) 0, (uint32_t) POWER_MAX_W);
-  battery_percent = clamp(battery_percent, 0, 100);
-
   // Update display
   #define HOUR_TICKS_RADIUS 112
-  hal->gfx()->fill(rgb565(0, 0, 0));
-  hal->gfx()->setTextColor(rgb565(255, 255, 255), rgb565(0, 0, 0));
-  hal->gfx()->drawHourTicks(120, 120, HOUR_TICKS_RADIUS + 5, HOUR_TICKS_RADIUS - 5, rgb565(128, 128, 128));
+  hal->gfx()->fill(ui->getBackgroundColor());
+  hal->gfx()->setTextColor(ui->getForegroundColor(),ui->getBackgroundColor());
+  hal->gfx()->drawHourTicks(120, 120, HOUR_TICKS_RADIUS + 5, HOUR_TICKS_RADIUS - 5, ui->getForegroundDimmedColor());
 
   #define ANGLE_OFFSET 180
   int32_t stop_angle;
@@ -173,8 +213,8 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
 
   // Arcs
   // Grid power
-  stop_angle = ANGLE_OFFSET + ((grid_power * -360) / POWER_MAX_W);
-  if (grid_power > 0) {
+  stop_angle = ANGLE_OFFSET + ((grid_anim.value * -360) / POWER_MAX_W);
+  if (grid_anim.value > 0) {
     color = rgb565(210, 50, 66);
   } else {
     color = rgb565(66,50,210);
@@ -184,12 +224,12 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
   hal->gfx()->drawArc(120, 120, ANGLE_OFFSET, stop_angle, 90, 95, 5, color);
   // PV power and prediction
   hal->gfx()->drawArc(120, 120, 0, 360, 90, 82, 3, changeColor(rgb565(117, 235, 10), 0.20));
-  stop_angle = ANGLE_OFFSET + ((predpv_power * 360) / POWER_MAX_W);
+  stop_angle = ANGLE_OFFSET + ((pvpred_anim.value * 360) / POWER_MAX_W);
   hal->gfx()->drawArc(120, 120, ANGLE_OFFSET, stop_angle, 90, 82, 4, rgb565(117, 235, 10));
-  stop_angle = ANGLE_OFFSET + ((pv_power * 360) / POWER_MAX_W);
+  stop_angle = ANGLE_OFFSET + ((pv_anim.value * 360) / POWER_MAX_W);
   hal->gfx()->drawArc(120, 120, ANGLE_OFFSET, stop_angle, 90, 82, 5, dimColor(rgb565(117, 235, 10), 50));
   // AC power
-  stop_angle = ANGLE_OFFSET + ((ac_power * 360) / POWER_MAX_W);
+  stop_angle = ANGLE_OFFSET + ((ac_anim.value * 360) / POWER_MAX_W);
   hal->gfx()->drawArc(120, 120, 0, 360, 90, 69, 3, changeColor(rgb565(25, 193, 202), 0.25));
   hal->gfx()->drawArc(120, 120, ANGLE_OFFSET, stop_angle, 90, 69, 4, dimColor(rgb565(25, 193, 202), 25));
   hal->gfx()->drawArc(120, 120, ANGLE_OFFSET, stop_angle, 90, 69, 5, rgb565(25, 193, 202));
@@ -197,22 +237,22 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
   // Texts
   hal->gfx()->setTextSize(1);
   hal->gfx()->setTextRightAligned();
-  hal->gfx()->setTextCursor(120, 220);
+  hal->gfx()->setTextCursor(120, 228);
   hal->gfx()->print("Grid ");
   hal->gfx()->setTextLeftAligned();
-  hal->gfx()->setTextCursor(120, 220);
+  hal->gfx()->setTextCursor(120, 228);
   snprintf(buf, sizeof(buf), "%d", grid_power);
   hal->gfx()->print(buf);
 
   hal->gfx()->setTextCenterAligned();
-  hal->gfx()->setTextCursor(120, 198);
+  hal->gfx()->setTextCursor(120, 206);
   hal->gfx()->print("PV");
 
   hal->gfx()->setTextRightAligned();
-  hal->gfx()->setTextCursor(120, 167);
+  hal->gfx()->setTextCursor(120, 173);
   hal->gfx()->print("Load ");
   hal->gfx()->setTextLeftAligned();
-  hal->gfx()->setTextCursor(120, 168);
+  hal->gfx()->setTextCursor(120, 173);
   snprintf(buf, sizeof(buf), "%d", ac_power);
   hal->gfx()->print(buf);
 
@@ -231,15 +271,15 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
   hal->gfx()->print(buf);
 
   // Draw battery
-  hal->gfx()->fillFrame(93, 66, 56, 17, rgb565(220, 220, 220));
-  hal->gfx()->fillFrame(94, 67, 54, 15, rgb565(0, 0, 0));
+  hal->gfx()->fillFrame(93, 66, 56, 17, ui->getForegroundColor());
+  hal->gfx()->fillFrame(94, 67, 54, 15, ui->getBackgroundColor());
   if (battery_current > 0) {
     color = rgb565(200, 40, 56);
   } else {
     color = dimColor(rgb565(117, 235, 10), 50);
   }
-  hal->gfx()->fillFrame(94, 67, (54 * battery_percent) / 100, 15, color);
-  hal->gfx()->fillFrame(149, 69, 4, 11, rgb565(220, 220, 220));
+  hal->gfx()->fillFrame(94, 67, (54 * batt_anim.value) / 100, 15, color);
+  hal->gfx()->fillFrame(149, 69, 4, 11, ui->getForegroundColor());
   hal->gfx()->setTextSize(1);
   hal->gfx()->setTextCenterAligned();
   hal->gfx()->setTextCursor(120, 70);
