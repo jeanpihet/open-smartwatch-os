@@ -99,13 +99,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
     battery_current = doc["batt_current"];
     battery_temp = doc["batt_temp"];
   }
-
-  // Clamp values for display
-  grid_power = clamp(grid_power, -POWER_MAX_W, POWER_MAX_W);
-  ac_power = clamp(ac_power, (uint32_t) 0, (uint32_t) POWER_MAX_W);
-  pv_power = clamp(pv_power, (uint32_t) 0, (uint32_t) POWER_MAX_W);
-  predpv_power = clamp(predpv_power, (uint32_t) 0, (uint32_t) POWER_MAX_W);
-  battery_percent = clamp(battery_percent, 0, 100);
 }
 
 void OswAppEnergyMqtt::setup(OswHal* hal) {
@@ -213,7 +206,7 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
 
   // Arcs
   // Grid power
-  stop_angle = ANGLE_OFFSET + ((grid_anim.value * -360) / POWER_MAX_W);
+  stop_angle = ANGLE_OFFSET + ((clamp(grid_anim.value, -POWER_MAX_W, POWER_MAX_W) * -360) / POWER_MAX_W);
   if (grid_anim.value > 0) {
     color = rgb565(210, 50, 66);
   } else {
@@ -224,12 +217,12 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
   hal->gfx()->drawArc(120, 120, ANGLE_OFFSET, stop_angle, 90, 95, 5, color);
   // PV power and prediction
   hal->gfx()->drawArc(120, 120, 0, 360, 90, 82, 3, changeColor(rgb565(117, 235, 10), 0.20));
-  stop_angle = ANGLE_OFFSET + ((pvpred_anim.value * 360) / POWER_MAX_W);
+  stop_angle = ANGLE_OFFSET + ((clamp((uint32_t) pvpred_anim.value, (uint32_t) 0, (uint32_t) POWER_MAX_W) * 360) / POWER_MAX_W);
   hal->gfx()->drawArc(120, 120, ANGLE_OFFSET, stop_angle, 90, 82, 4, rgb565(117, 235, 10));
-  stop_angle = ANGLE_OFFSET + ((pv_anim.value * 360) / POWER_MAX_W);
+  stop_angle = ANGLE_OFFSET + ((clamp((uint32_t) pv_anim.value, (uint32_t) 0, (uint32_t) POWER_MAX_W) * 360) / POWER_MAX_W);
   hal->gfx()->drawArc(120, 120, ANGLE_OFFSET, stop_angle, 90, 82, 5, dimColor(rgb565(117, 235, 10), 50));
   // AC power
-  stop_angle = ANGLE_OFFSET + ((ac_anim.value * 360) / POWER_MAX_W);
+  stop_angle = ANGLE_OFFSET + ((clamp((uint32_t) ac_anim.value, (uint32_t) 0, (uint32_t) POWER_MAX_W) * 360) / POWER_MAX_W);
   hal->gfx()->drawArc(120, 120, 0, 360, 90, 69, 3, changeColor(rgb565(25, 193, 202), 0.25));
   hal->gfx()->drawArc(120, 120, ANGLE_OFFSET, stop_angle, 90, 69, 4, dimColor(rgb565(25, 193, 202), 25));
   hal->gfx()->drawArc(120, 120, ANGLE_OFFSET, stop_angle, 90, 69, 5, rgb565(25, 193, 202));
@@ -278,7 +271,7 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
   } else {
     color = dimColor(rgb565(117, 235, 10), 50);
   }
-  hal->gfx()->fillFrame(94, 67, (54 * batt_anim.value) / 100, 15, color);
+  hal->gfx()->fillFrame(94, 67, (54 * clamp(batt_anim.value, 0, 100)) / 100, 15, color);
   hal->gfx()->fillFrame(149, 69, 4, 11, ui->getForegroundColor());
   hal->gfx()->setTextSize(1);
   hal->gfx()->setTextCenterAligned();
