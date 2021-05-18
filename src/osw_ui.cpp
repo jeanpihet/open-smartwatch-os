@@ -9,7 +9,9 @@ void OswUI::setup(OswHal* hal) {
   _hal = hal;
   // OswConfigAllKeys::themePrimaryColor.get()
   themeBackgroundColor = rgb888to565(OswConfigAllKeys::themeBackgroundColor.get());
+  themeBackgroundDimmedColor = rgb888to565(OswConfigAllKeys::themeBackgroundDimmedColor.get());
   themeForegroundColor = rgb888to565(OswConfigAllKeys::themeForegroundColor.get());
+  themeForegroundDimmedColor = rgb888to565(OswConfigAllKeys::themeForegroundDimmedColor.get());
   themePrimaryColor = rgb888to565(OswConfigAllKeys::themePrimaryColor.get());
   themeInfoColor = rgb888to565(OswConfigAllKeys::themeInfoColor.get());
   themeSuccessColor = rgb888to565(OswConfigAllKeys::themeSuccessColor.get());
@@ -32,7 +34,9 @@ uint16_t OswUI::getDangerColor(void) { return themeDangerColor; }
 void OswUI::resetColors(void) {  //
   _hal->gfx()->setTextColor(getForegroundColor(), getBackgroundColor());
   themeBackgroundColor = rgb888to565(OswConfigAllKeys::themeBackgroundColor.get());
+  themeBackgroundDimmedColor = rgb888to565(OswConfigAllKeys::themeBackgroundDimmedColor.get());
   themeForegroundColor = rgb888to565(OswConfigAllKeys::themeForegroundColor.get());
+  themeForegroundDimmedColor = rgb888to565(OswConfigAllKeys::themeForegroundDimmedColor.get());
   themePrimaryColor = rgb888to565(OswConfigAllKeys::themePrimaryColor.get());
   themeInfoColor = rgb888to565(OswConfigAllKeys::themeInfoColor.get());
   themeSuccessColor = rgb888to565(OswConfigAllKeys::themeSuccessColor.get());
