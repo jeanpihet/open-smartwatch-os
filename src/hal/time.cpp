@@ -156,13 +156,13 @@ void OswHal::updateTimeViaNTP(long gmtOffset_sec, int daylightOffset_sec, uint32
 
     Serial.println("Waiting for time");
 
-    while (!time(nullptr) && millis() - start < timeout_sec * 1000) {
+    // sometimes time(nullptr) returns seconds since boot
+    // so check the request was resolved during the waiting time
+    while (time(nullptr) < 1600000000 && millis() - start < timeout_sec * 1000) {
       Serial.print(".");
       delay(1000);
     }
 
-    // sometimes time(nullptr) returns seconds since boot
-    // so check the request was resolved
     if (time(nullptr) > 1600000000) {
       Serial.println(time(nullptr));
       setUTCTime(time(nullptr));
