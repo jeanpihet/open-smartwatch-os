@@ -8,7 +8,7 @@
 
 class OswAppEnergyMqtt : public OswApp {
  public:
-  OswAppEnergyMqtt(void) { ui = OswUI::getInstance(); };
+  OswAppEnergyMqtt(void) {};
   void setup(OswHal * hal);
   void loop(OswHal* hal);
   void stop(OswHal* hal);
