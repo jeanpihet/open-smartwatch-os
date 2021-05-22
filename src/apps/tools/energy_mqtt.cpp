@@ -124,6 +124,28 @@ void prepare_display(OswHal* hal) {
   // Hour ticks
   hal->gfx()->drawHourTicks(120, 120, HOUR_TICKS_RADIUS + 5, HOUR_TICKS_RADIUS - 5,
                             OswUI::getInstance()->getForegroundDimmedColor());
+
+  // Time
+  uint32_t second = 0;
+  uint32_t minute = 0;
+  uint32_t hour = 0;
+  hal->getLocalTime(&hour, &minute, &second);
+  // hours
+  float angle = 3.1415 - (6.283 / 12.0 * (1.0 * hour + minute / 60.0));
+  double x = 120.0 + sin(angle) * HOUR_TICKS_RADIUS;
+  double y = 120.0 + cos(angle) * HOUR_TICKS_RADIUS;
+  hal->gfx()->fillCircle(x, y, 7, rgb565(220, 220, 220));
+  // minutes
+  angle = 3.1415 - (6.283 / 60.0 * (minute + second / 60.0));
+  x = 120.0 + sin(angle) * HOUR_TICKS_RADIUS;
+  y = 120.0 + cos(angle) * HOUR_TICKS_RADIUS;
+  hal->gfx()->fillCircle(x, y, 5, rgb565(252,255, 55));
+  // seconds
+  angle = 3.1415 - (6.283 / 60.0 * second);
+  x = 120.0 + sin(angle) * HOUR_TICKS_RADIUS;
+  y = 120.0 + cos(angle) * HOUR_TICKS_RADIUS;
+  hal->gfx()->fillCircle(x, y, 3, rgb565(252, 94, 57));
+
   // Background arcs
   if (grid_anim.value > 0) {
     color = rgb565(210, 50, 66);
@@ -133,6 +155,7 @@ void prepare_display(OswHal* hal) {
   hal->gfx()->drawArc(120, 120, 0, 360, 90, 95, 3, changeColor(color, 0.33));
   hal->gfx()->drawArc(120, 120, 0, 360, 90, 82, 3, changeColor(rgb565(117, 235, 10), 0.33));
   hal->gfx()->drawArc(120, 120, 0, 360, 90, 69, 3, changeColor(rgb565(25, 193, 202), 0.33));
+
   // Text
   if (!hal->getWiFi()->isConnected()) {
     hal->gfx()->setTextSize(2);
@@ -141,6 +164,7 @@ void prepare_display(OswHal* hal) {
     hal->gfx()->setTextCursor(120, 108);
     hal->gfx()->print("Energy monitor");
   }
+
   // Buttons
   OswUI::getInstance()->setTextCursor(BUTTON_3);
   if (!hal->getWiFi()->isConnected()) {
@@ -226,27 +250,6 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
     #define ANGLE_OFFSET 180
     int32_t stop_angle;
     uint16_t color;
-
-    // Time
-    uint32_t second = 0;
-    uint32_t minute = 0;
-    uint32_t hour = 0;
-    hal->getLocalTime(&hour, &minute, &second);
-    // hours
-    float angle = 3.1415 - (6.283 / 12.0 * (1.0 * hour + minute / 60.0));
-    double x = 120.0 + sin(angle) * HOUR_TICKS_RADIUS;
-    double y = 120.0 + cos(angle) * HOUR_TICKS_RADIUS;
-    hal->gfx()->fillCircle(x, y, 7, rgb565(220, 220, 220));
-    // minutes
-    angle = 3.1415 - (6.283 / 60.0 * (minute + second / 60.0));
-    x = 120.0 + sin(angle) * HOUR_TICKS_RADIUS;
-    y = 120.0 + cos(angle) * HOUR_TICKS_RADIUS;
-    hal->gfx()->fillCircle(x, y, 5, rgb565(252,255, 55));
-    // seconds
-    angle = 3.1415 - (6.283 / 60.0 * second);
-    x = 120.0 + sin(angle) * HOUR_TICKS_RADIUS;
-    y = 120.0 + cos(angle) * HOUR_TICKS_RADIUS;
-    hal->gfx()->fillCircle(x, y, 3, rgb565(252, 94, 57));
 
     // Arcs
     // Grid power
