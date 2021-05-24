@@ -201,30 +201,32 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
   }
   // Connect WiFi
   if (!hal->getWiFi()->isConnected()) {
-      if (connecting)
-        hal->getWiFi()->joinWifi();
+      if (connecting) {
+        hal->getWiFi()->checkWifi();
+        // Connect MQTT
+        client.setServer(broker, 1883);
+        client.setCallback(callback);
+      }
   } else {
     // Connect MQTT
-    client.setServer(broker, 1883);
-    client.setCallback(callback);
-    // Subscribe to MQTT topics
     if (!client.connected()) {
-      if (client.connect("opensmartwatch")) {
-        // MQTT drops messages > 256 bytes, increase the limit
-        client.setBufferSize(512);
-        client.subscribe("house/#");
+      if (connecting) {
+        // Subscribe to MQTT topics
+        if (client.connect("opensmartwatch")) {
+          // MQTT drops messages > 256 bytes, increase the limit
+          client.setBufferSize(512);
+          client.subscribe("house/#");
+        }
       }
+    } else {
+      // Check MQTT messages
+      client.loop();
+      grid_anim.target = grid_power;
+      pv_anim.target = pv_power;
+      pvpred_anim.target = predpv_power;
+      ac_anim.target = ac_power;
+      batt_anim.target = battery_percent;
     }
-  }
-
-  // Check MQTT messages
-  if (client.connected()) {
-    client.loop();
-    grid_anim.target = grid_power;
-    pv_anim.target = pv_power;
-    pvpred_anim.target = predpv_power;
-    ac_anim.target = ac_power;
-    batt_anim.target = battery_percent;
   }
 
   // Update anim, otherwise update UI every 1s
