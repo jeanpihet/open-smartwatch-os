@@ -17,7 +17,12 @@ static long lastUITick;
 IPAddress broker(192,168,2,33);
 WiFiClient wclient;
 PubSubClient client(wclient);
-bool connecting;
+
+enum connection {
+  CONNECTION_INIT,
+  CONNECTING,
+  DISCONNECTED,
+} connecting;
 
 StaticJsonDocument<512> doc;
 uint32_t predpv_power = 0;
@@ -168,16 +173,16 @@ void prepare_display(OswHal* hal) {
   // Buttons
   OswUI::getInstance()->setTextCursor(BUTTON_3);
   if (!hal->getWiFi()->isConnected()) {
-    if (!connecting)
+    if (connecting == DISCONNECTED || connecting == CONNECTION_INIT)
       hal->gfx()->print(LANG_CONNECT);
-    else
+    if (connecting == CONNECTING)
       hal->gfx()->print(LANG_BMC_CONNECTING);
   }
 }
 
 void OswAppEnergyMqtt::setup(OswHal* hal) {
   hal->getWiFi()->setDebugStream(&Serial);
-  connecting = false;
+  connecting = CONNECTION_INIT;
   prepare_display(hal);
   hal->requestFlush();
   lastUITick = millis();
@@ -189,11 +194,11 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
   // Check button for connection
   if (hal->btnHasGoneDown(BUTTON_3)) {
     if (hal->getWiFi()->isConnected()) {
-      connecting = false;
+      connecting = DISCONNECTED;
       hal->getWiFi()->disableWiFi();
     } else {
       // Update display and connect during the next loop()
-      connecting = true;
+      connecting = CONNECTING;
       prepare_display(hal);
       hal->requestFlush();
       return;
@@ -201,16 +206,16 @@ void OswAppEnergyMqtt::loop(OswHal* hal) {
   }
   // Connect WiFi
   if (!hal->getWiFi()->isConnected()) {
-      if (connecting) {
+      if (connecting == CONNECTING) {
         hal->getWiFi()->checkWifi();
+      }
+  } else {
+    // Connect MQTT if WiFi is connected
+    if (!client.connected()) {
+      if (connecting == CONNECTION_INIT || connecting == CONNECTING) {
         // Connect MQTT
         client.setServer(broker, 1883);
         client.setCallback(callback);
-      }
-  } else {
-    // Connect MQTT
-    if (!client.connected()) {
-      if (connecting) {
         // Subscribe to MQTT topics
         if (client.connect("opensmartwatch")) {
           // MQTT drops messages > 256 bytes, increase the limit
